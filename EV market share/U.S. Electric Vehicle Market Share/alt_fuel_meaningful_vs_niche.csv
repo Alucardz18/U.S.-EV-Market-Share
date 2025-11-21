@@ -1,0 +1,6 @@
+fuel_type,avg_share_pct,max_share_pct,states_above_1pct,category
+Biodiesel,1.1693,3.7095,27,Meaningful
+"Ethanol/Flex (E85)",7.5974,11.2741,51,Meaningful
+"Compressed Natural Gas (CNG)",0.0069,0.0715,0,Niche
+Propane,0.0015,0.0163,0,Niche
+Hydrogen,0.0009,0.0459,0,Niche
