@@ -273,3 +273,19 @@ order by `EV_Representation_Index` desc
 ;
 
 
+-- largest gasoline vehicle population overall
+SELECT
+    State,
+    gasoline_count,
+    total_vehicles,
+    ROUND(
+        gasoline_count * 100.0 / NULLIF(total_vehicles, 0),
+        2
+    ) AS gasoline_share_pct,
+    ROUND(
+        ev_count * 100.0 / NULLIF(total_vehicles, 0),
+        2
+    ) AS ev_adoption_pct
+FROM state_vehicle_metrics
+ORDER BY gasoline_count DESC
+LIMIT 10;
