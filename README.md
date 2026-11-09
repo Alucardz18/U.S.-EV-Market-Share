@@ -4,7 +4,7 @@
 
 This project analyzes U.S. vehicle registration data to evaluate electric vehicle (EV) adoption across states and jurisdictions and identify large vehicle markets that may warrant further investigation for EV market expansion.
 
-The analysis combines **SQL, MySQL, DAX, and Power BI** to transform raw vehicle registration data into business-focused metrics and interactive dashboards.
+The analysis combines **SQL, MySQL, DAX, and Power BI** to transform raw vehicle registration data into business-focused metrics and an interactive three-page dashboard.
 
 Rather than evaluating EV registrations by volume alone, the project considers multiple dimensions of market performance, including:
 
@@ -20,8 +20,15 @@ The project follows a business-oriented analytical workflow:
 
 **Business Problem → KPI → Comparison → Market Segmentation → Opportunity → Recommendation**
 
-> **Project Status:** In Progress  
-> Additional fuel composition analysis, dashboard development, documentation, and final recommendations are currently being completed.
+---
+
+## Executive Summary
+
+- Fully electric vehicles make up **1.24%** of the **287.1 million** light-duty vehicles registered in the U.S. in 2023 (3.56 million EVs).
+- EVs are highly concentrated. **California holds 35.3% of all U.S. EVs** with only 12.8% of vehicles, and the top 5 states hold 57% of EVs.
+- Of the 23 jurisdictions with at least 5 million vehicles, **15 are below the national EV adoption rate**. Together they would need about **645,000 more EVs** just to match the national rate.
+- **Texas** is the largest of these markets (25.8M vehicles, 0.89% EV) and has the largest absolute gap, about 89,000 EVs below the national rate.
+- **E85 flex-fuel vehicles (7.05%)** are by far the largest alternative-fuel group and reach at least 1% of vehicles in all 51 jurisdictions. CNG, hydrogen, propane, and methanol are each under 0.01% nationally.
 
 ---
 
@@ -45,9 +52,20 @@ The analysis is designed for stakeholders such as:
 
 ---
 
-## Business Questions
+## Data Source
 
-The analysis focuses on the following questions:
+**U.S. Department of Energy, Alternative Fuels Data Center (AFDC): Vehicle Registration Counts by State, 2023.**
+AFDC publishes these counts using data from Experian, rounded to the nearest 100.
+
+The totals in this project match the AFDC 2023 figures (for example, 3,555,900 EVs nationally and 1,256,600 in California).
+
+- **Scope:** light-duty vehicles only. "Total registered vehicles" in this project means light-duty vehicles, not all vehicles.
+- **Coverage:** 51 jurisdictions (50 states and the District of Columbia).
+- **Fuel types:** EV, PHEV, HEV, gasoline, diesel, E85, biodiesel, CNG, propane, hydrogen, methanol, and unknown fuel.
+
+---
+
+## Business Questions
 
 1. What is the national EV adoption rate?
 2. Which jurisdictions have the highest and lowest EV adoption rates?
@@ -70,99 +88,69 @@ The analysis focuses on the following questions:
 | **DBeaver** | SQL development and database management |
 | **Power BI** | Data modeling, DAX calculations, dashboard development, and visualization |
 | **DAX** | Dynamic KPIs, benchmarks, market segmentation, and comparative metrics |
+| **Power Query** | Unpivoting alternative-fuel columns into a long table |
 | **Git/GitHub** | Version control and project documentation |
 
 ---
 
 ## Data Preparation
 
-The raw vehicle registration dataset contained duplicate jurisdiction records caused by inconsistent `Methanol` values, where one version of each record contained `NULL` and another contained `0`.
+The raw import contained **102 rows for 51 jurisdictions**: every jurisdiction appeared twice, once with `Methanol` as `NULL` and once with `0`.
 
-A layered data workflow was created to preserve the original data while producing a clean analytical dataset.
+A layered workflow preserves the original data while producing a clean analytical dataset.
 
 ```text
-Raw Vehicle Data
+Vehicle Data.csv
        ↓
-vehicle_data_raw
+vehicle_data_raw          (original import, untouched)
        ↓
-vehicle_data_clean
+vehicle_data_clean        (DataCleaning.sql)
        ↓
-state_vehicle_metrics
+state_vehicle_metrics     (view in AnalysisDes.sql)
        ↓
-Power BI Data Model
+Power BI data model and DAX measures
        ↓
-DAX Measures
-       ↓
-Interactive Dashboard
+Interactive dashboard
 ```
 
 ### Cleaning Process
 
-Key data preparation steps included:
+`DataCleaning.sql`:
 
-- Preserving the original dataset in a raw table
-- Investigating duplicate jurisdiction records
-- Identifying `NULL` versus `0` inconsistencies in the Methanol field
-- Standardizing missing Methanol values
-- Removing duplicate jurisdiction records
-- Validating one record per jurisdiction
-- Creating a reusable analytical SQL view
-- Creating standardized aliases for fuel-count variables
-- Calculating total registered vehicles for each jurisdiction
+- Counts rows and distinct jurisdictions in the raw import
+- Lists the duplicated jurisdictions
+- Compares `NULL` and `0` Methanol values
+- Builds `vehicle_data_clean` with `COALESCE(Methanol, 0)` and `SELECT DISTINCT`, which collapses each duplicate pair into one row
+- Confirms **51 rows and 51 distinct jurisdictions**
 
-The resulting analytical dataset contains **51 jurisdictions**, representing the 50 U.S. states and the District of Columbia.
+`AnalysisDes.sql` then:
+
+- Checks for nulls and negative values
+- Creates the `state_vehicle_metrics` view with clean aliases and `total_vehicles`
+- Answers the business questions with CTEs, cross joins to national benchmarks, and conditional aggregation
 
 ---
 
 ## Key Metrics
 
-### National EV Adoption Rate
+| Metric | Definition |
+|---|---|
+| **EV Adoption Rate** | Battery-electric registrations ÷ total registered vehicles. EVs only; hybrids are not included. |
+| **National EV Adoption Rate** | Total U.S. EVs ÷ total U.S. vehicles. A weighted rate, not an average of state rates. **1.24%** |
+| **EV Adoption Gap** | Jurisdiction EV rate minus the national rate. Negative means below the benchmark. |
+| **EV Representation Index** | Share of U.S. EVs ÷ share of U.S. vehicles (equal to state rate ÷ national rate). Above 1.00 means over-represented. |
+| **HEV/PHEV Rate** | (Hybrid + plug-in hybrid registrations) ÷ total vehicles. National rate **3.03%** |
+| **Large Market** | At least 5,000,000 registered vehicles. This is an analyst-chosen threshold, not an industry standard. |
+| **EV Gap to National Rate** | EVs a market would need to add to reach the national rate: (national rate × vehicles) − current EVs. |
 
-EV adoption is calculated as:
+### Count vs. Rate vs. Share
 
-```text
-EV Adoption Rate = Electric Vehicle Registrations / Total Registered Vehicles
-```
+- **Count:** how many EVs are registered?
+- **Adoption Rate:** what percentage of a jurisdiction's vehicles are electric?
+- **National EV Share:** what percentage of all U.S. EVs come from this jurisdiction?
+- **Representation Index:** does the jurisdiction have more or fewer EVs than its market size would predict?
 
-The analysis uses a **weighted national adoption rate**, rather than averaging individual jurisdiction adoption rates.
-
-**National EV Adoption Rate: 1.24%**
-
-This metric serves as the primary benchmark for comparing EV penetration across jurisdictions.
-
----
-
-### EV Adoption Gap
-
-The EV Adoption Gap measures how far each jurisdiction's EV adoption rate is above or below the national benchmark.
-
-```text
-EV Adoption Gap =
-Jurisdiction EV Adoption Rate - National EV Adoption Rate
-```
-
-A negative value indicates that EV penetration is below the national benchmark.
-
----
-
-### EV Representation Index
-
-The EV Representation Index compares a jurisdiction's share of U.S. EV registrations with its share of the overall U.S. vehicle market.
-
-```text
-EV Representation Index =
-Jurisdiction Share of U.S. EVs
-/
-Jurisdiction Share of U.S. Vehicles
-```
-
-Interpretation:
-
-- **Above 1.00** → EVs are overrepresented relative to the jurisdiction's vehicle market size
-- **1.00** → EV representation is proportional to vehicle market size
-- **Below 1.00** → EVs are underrepresented relative to vehicle market size
-
-This provides additional context beyond EV registration counts or adoption rates alone.
+Using these together gives a more complete picture than EV counts alone.
 
 ---
 
@@ -170,287 +158,173 @@ This provides additional context beyond EV registration counts or adoption rates
 
 ### National EV Adoption
 
-Fully electric vehicles represent approximately **1.24% of registered vehicles nationally** in the dataset.
+Fully electric vehicles represent **1.24%** of registered light-duty vehicles nationally.
 
-EV adoption varies substantially across jurisdictions.
+| Highest EV adoption | Rate | | Lowest EV adoption | Rate |
+|---|---:|---|---|---:|
+| California | 3.41% | | North Dakota | 0.13% |
+| District of Columbia | 2.60% | | Mississippi | 0.13% |
+| Hawaii | 2.37% | | Wyoming | 0.17% |
+| Washington | 2.23% | | | |
+| Nevada | 1.85% | | | |
 
-Among the highest EV adoption rates identified were:
-
-- California — **3.41%**
-- District of Columbia — **2.60%**
-- Hawaii — **2.37%**
-- Washington — **2.23%**
-- Nevada — **1.85%**
-
-This demonstrates that high EV penetration is not necessarily associated with the largest overall vehicle markets.
-
----
+High adoption does not always mean a big EV market. D.C. ranks second in adoption but has only 8,100 EVs.
 
 ### EV Volume vs. EV Penetration
 
-The jurisdictions with the largest vehicle markets are not identical to those with the largest EV populations.
+- California leads both EV registrations (1.26M) and EV adoption.
+- Florida has **254,900 EVs** at a **1.37%** adoption rate.
+- Texas has **230,100 EVs** but a much larger vehicle market (25.8M vs. 18.6M) and a lower adoption rate (**0.89%**).
 
-For example:
-
-- California leads both overall EV registrations and EV adoption among large markets.
-- Florida has approximately **254,900 EV registrations** with an EV adoption rate of approximately **1.37%**.
-- Texas has approximately **230,100 EV registrations** but a substantially larger overall vehicle market and an EV adoption rate of approximately **0.89%**.
-
-This illustrates why EV registration volume should be evaluated alongside market size and penetration.
-
----
+Texas holds 9.0% of U.S. vehicles but only 6.5% of U.S. EVs.
 
 ### Large Markets Below the National Benchmark
 
-For this analysis, a **large vehicle market** is defined as a jurisdiction with at least **5 million registered vehicles**.
+Of the **23** jurisdictions with at least 5 million vehicles, **15 have EV adoption below 1.24%**. Texas is the largest of them.
 
-Using this threshold:
+| Market | Vehicles | EV rate | Gap | Rep. index | EV gap to national rate |
+|---|---:|---:|---:|---:|---:|
+| Texas | 25.8M | 0.89% | -0.35 pts | 0.72 | ~89,400 |
+| Ohio | 10.3M | 0.49% | -0.75 pts | 0.39 | ~77,400 |
+| Pennsylvania | 10.2M | 0.69% | -0.55 pts | 0.56 | ~56,300 |
+| Michigan | 8.5M | 0.59% | -0.65 pts | 0.48 | ~55,300 |
+| Indiana | 6.2M | 0.42% | -0.82 pts | 0.34 | ~50,300 |
+| Tennessee | 6.5M | 0.51% | -0.73 pts | 0.41 | ~47,800 |
+| Wisconsin | 5.5M | 0.45% | -0.79 pts | 0.36 | ~43,600 |
+| Missouri | 5.6M | 0.48% | -0.76 pts | 0.39 | ~42,800 |
+| North Carolina | 9.1M | 0.77% | -0.47 pts | 0.62 | ~42,300 |
+| South Carolina | 5.0M | 0.41% | -0.82 pts | 0.33 | ~41,600 |
+| Georgia | 9.6M | 0.96% | -0.28 pts | 0.77 | ~27,000 |
+| Minnesota | 5.1M | 0.72% | -0.51 pts | 0.59 | ~26,300 |
+| Illinois | 10.0M | 0.99% | -0.25 pts | 0.80 | ~24,800 |
+| Virginia | 7.7M | 1.10% | -0.14 pts | 0.89 | ~10,800 |
+| New York | 11.3M | 1.16% | -0.08 pts | 0.94 | ~8,900 |
 
-**15 large vehicle markets have EV adoption below the 1.24% national benchmark.**
-
-These include markets such as:
-
-- Texas
-- New York
-- Virginia
-- Illinois
-- Georgia
-- North Carolina
-- Pennsylvania
-- Michigan
-- Tennessee
-- Ohio
-- Missouri
-- Wisconsin
-- Indiana
-- South Carolina
-- Minnesota
-
-Texas is the **largest vehicle market among the below-benchmark jurisdictions** identified by the analysis.
-
-This does not by itself establish Texas—or any other jurisdiction—as the best market for EV expansion. Instead, the combination of large market size and below-benchmark EV penetration identifies these jurisdictions as candidates for further investigation.
-
----
+Being on this list does not make a market the best investment. It means the combination of a large market and below-benchmark EV adoption makes it a candidate for further investigation.
 
 ### EV Representation Relative to Market Size
 
-The EV Representation Index provides another way to evaluate market performance.
+| Jurisdiction | Representation Index |
+|---|---:|
+| California | 2.75 |
+| Washington | 1.80 |
+| New Jersey | 1.49 |
+| Florida | 1.11 |
+| New York | 0.94 |
+| Texas | 0.72 |
+| Ohio | 0.39 |
 
-Examples include:
+California has 2.75 times the EVs its market size would predict. Texas and Ohio have fewer EVs than their share of the vehicle market would suggest.
 
-- California — approximately **2.75**
-- Washington — approximately **1.80**
-- New Jersey — approximately **1.49**
-- Florida — approximately **1.11**
-- New York — approximately **0.94**
-- Texas — approximately **0.72**
-- Ohio — approximately **0.39**
+### Gasoline Dependence
 
-California therefore accounts for a substantially larger share of U.S. EV registrations than its share of the overall vehicle market would suggest.
+Gasoline vehicles make up **84.6%** of registered vehicles nationally.
 
-Texas, despite its large vehicle market and EV population, has EV representation below its proportional share of the national vehicle market.
+California has the largest gasoline fleet overall (about 31.2M). Among jurisdictions **below the national EV benchmark**, Texas has the largest gasoline fleet (about 21.4M). The two rankings differ only because of that filter.
 
----
+Across jurisdictions, gasoline share has only a weak relationship with EV adoption (correlation of about 0.33), so on its own it does not separate high-EV from low-EV markets. It works as context, not as a predictor.
+
+### Hybrid Participation
+
+The national HEV/PHEV rate is **3.03%**. Seven jurisdictions have above-average hybrid participation but below-average EV adoption: New York, Maine, Virginia, Connecticut, Illinois, New Hampshire, and Rhode Island.
+
+Across all jurisdictions, hybrid rates and EV rates rise together (correlation of about 0.88). This is an association only. The data cannot show that hybrid owners will switch to EVs.
 
 ### Alternative Fuel Landscape
 
-The analysis also examines fuel types beyond fully electric vehicles.
-
-Among the alternative fuels evaluated:
-
 | Fuel Type | National Share | Jurisdictions with ≥1% Local Share |
 |---|---:|---:|
-| E85 | 7.05% | 51 |
-| Biodiesel | 0.98% | 27 |
-| CNG | <0.01% | 0 |
-| Hydrogen | <0.01% | 0 |
-| Propane | <0.01% | 0 |
-| Methanol | 0.00% | 0 |
+| E85 | 7.0501% | 51 |
+| Biodiesel | 0.9765% | 27 |
+| CNG | 0.0086% | 0 |
+| Hydrogen | 0.0059% | 0 |
+| Propane | 0.0021% | 0 |
+| Methanol | 0.0000% | 0 |
 
-E85 is the most prominent alternative fuel examined in the dataset and has the broadest geographic presence.
-
-Biodiesel represents a smaller but still measurable portion of registrations, while CNG, hydrogen, propane, and methanol remain niche within this dataset.
+E85 is the most common alternative fuel and the only one above 1% everywhere. Biodiesel is measurable but regional. CNG, hydrogen, and propane are present but niche. Zero jurisdictions at the 1% threshold does not mean a fuel is absent; for example, CNG is registered in 41 jurisdictions. Methanol has no recorded registrations in this dataset.
 
 ---
 
 ## Power BI Dashboard
 
-The Power BI report is being developed as a multi-page analytical dashboard.
+The report has three pages. Each page answers a different question, and each page has its own State slicer.
 
-### Page 1 — U.S. EV Market Overview
+### Page 1: U.S. EV Market Overview
 
-The executive overview provides a high-level view of the U.S. EV market, including:
+*How big is the U.S. EV market, and where is adoption highest?*
 
-- Total registered vehicles
-- Total EV registrations
-- National EV adoption rate
-- Leading jurisdiction by EV adoption
-- Geographic EV adoption patterns
-- Top jurisdictions by EV adoption rate
-- Top jurisdictions by EV registration volume
+![U.S. EV Market Overview](EV%20market%20share/U.S.%20Electric%20Vehicle%20Market%20Share/MarketOverview.png)
 
-![U.S. EV Market Overview](U.S.%20Electric%20Vehicle%20Share/MarketOverview.png)
+- KPIs: total vehicles, total EVs, national EV adoption rate, and the leading jurisdiction (California, 3.41%)
+- Map of EV adoption by jurisdiction
+- Top 5 jurisdictions by adoption rate and by EV count, side by side, to separate penetration from volume
+- National EV % and Leading Market always show the national values; vehicle and EV totals follow the State slicer
 
-The overview is designed to distinguish between **market size, EV volume, and EV penetration**, allowing stakeholders to quickly understand the national EV landscape.
+### Page 2: EV Market Opportunity
 
----
+*Which large markets have low EV penetration?*
 
-### Page 2 — EV Market Opportunity
+![EV Market Opportunity](EV%20market%20share/U.S.%20Electric%20Vehicle%20Market%20Share/MarketOpportunity.png)
 
-The second dashboard page focuses on identifying large markets that warrant further analysis.
+- KPIs: national benchmark (1.24%), large markets below benchmark (15), largest below-benchmark market (Texas). The benchmark always stays national; the other two cards narrow to the selected state when the State slicer is used.
+- EV Adoption Gap for the 15 below-benchmark large markets
+- EV Representation Index for all 23 large markets, with a 1.00 reference line
+- Market size vs. EV adoption scatter plot, with bubble size for EV count and a dashed national benchmark line
 
-Current components include:
+### Page 3: Fuel Transition & Market Composition
 
-- National EV adoption benchmark
-- Count of large markets below the national benchmark
-- Largest below-benchmark vehicle market
-- Market Size vs. EV Adoption scatter plot
-- EV Adoption Gap analysis
-- EV Representation Index
+*How do gasoline, hybrids, and alternative fuels fit in?*
 
-The market opportunity analysis uses multiple indicators rather than relying on a single ranking or score.
+![Fuel Transition & Market Composition](EV%20market%20share/U.S.%20Electric%20Vehicle%20Market%20Share/FuelTransition.png)
 
-This helps distinguish between:
+- Gasoline share vs. EV adoption, and HEV/PHEV rate vs. EV adoption, both with national benchmark lines
+- National alternative-fuel shares, a separate niche-fuel chart on its own scale, and geographic reach (jurisdictions at 1% or more)
+- With no state selected, every chart shows national values. The key insights text always describes the national results
 
-- Large markets with high EV penetration
-- Large markets with low EV penetration
-- Smaller markets with high EV penetration
-- Smaller markets with low EV penetration
+### Data model
 
----
-
-### Page 3 — Fuel Transition & Market Composition
-
-**Status: In Development**
-
-This page will examine the broader vehicle fuel landscape, including:
-
-- Gasoline dependence
-- Hybrid Electric Vehicle (HEV) registrations
-- Plug-In Hybrid Electric Vehicle (PHEV) registrations
-- HEV/PHEV participation relative to EV adoption
-- Alternative-fuel market share
-- Geographic reach of alternative fuels
-
-The purpose of this analysis is to provide additional market context rather than assume that hybrid or alternative-fuel adoption directly causes future EV adoption.
+- `evmarketshare state_vehicle_metrics`: one row per jurisdiction, loaded from the MySQL view
+- `Alternative_fuel_data`: six alternative-fuel columns unpivoted in Power Query (51 × 6 = 306 rows)
+- Many-to-one relationship on `State`, single filter direction, so the State slicer filters both tables without double counting
+- National benchmarks use `CALCULATE(..., REMOVEFILTERS(State))`, so they stay at the national value under any state selection
 
 ---
 
-## Analytical Approach
+## Recommendations
 
-A major focus of this project is separating several metrics that can easily be confused.
+1. **Investigate the largest absolute gaps first.** Texas, Ohio, Pennsylvania, Michigan, and Indiana have the largest EV gaps to the national rate (about 50,000 to 89,000 EVs each). They are large markets with low representation (index 0.34 to 0.72). Start here when gathering charging, price, and incentive data.
+2. **Treat New York, Virginia, and Illinois as a separate group.** They are close to the benchmark (gap under 0.3 points) and have above-average hybrid participation. The question here is what keeps hybrid-friendly buyers from choosing EVs, not whether demand exists.
+3. **Use California, Washington, and New Jersey as reference markets.** Their representation indexes (1.49 to 2.75) make them useful comparisons for what a high-adoption market looks like.
+4. **Keep E85 and biodiesel separate from niche fuels** in any alternative-fuel planning. The niche fuels are too small in this data to support market conclusions.
 
-### Count vs. Rate vs. Share
+### KPIs to track with future data
 
-**Count** answers:
-
-> How many EVs are registered?
-
-**Adoption Rate** answers:
-
-> What percentage of a jurisdiction's vehicle market is electric?
-
-**National EV Share** answers:
-
-> What percentage of all U.S. EV registrations comes from this jurisdiction?
-
-**Representation Index** answers:
-
-> Is the jurisdiction contributing more or fewer EV registrations than expected based on its overall vehicle market size?
-
-Using these metrics together provides a more complete picture than relying on EV registration counts alone.
-
----
-
-## Business Interpretation
-
-The analysis indicates that stronger candidates for further EV market investigation are characterized by a combination of:
-
-- Large overall vehicle market size
-- EV penetration below the national benchmark
-- EV underrepresentation relative to overall market size
-- Large conventional gasoline vehicle populations
-- Potential participation in hybrid and plug-in hybrid vehicle segments
-
-No single metric is treated as sufficient evidence for an expansion decision.
-
-Instead, the dashboard uses multiple indicators to identify jurisdictions where additional market research may be valuable.
+- EV adoption rate by jurisdiction, year over year
+- EV gap to national rate for the 15 below-benchmark markets
+- EV Representation Index for the shortlisted markets
+- HEV/PHEV rate alongside EV rate in the hybrid-heavy group
+- Public charging ports per 1,000 EVs (requires charging data)
 
 ---
 
 ## Limitations
 
-The dataset represents a **snapshot of vehicle registrations** and does not contain a visible historical date or year field.
-
-As a result, this project does **not** make claims regarding:
-
-- EV market growth rates
-- Increasing or declining EV adoption
-- Year-over-year market momentum
-- Future EV demand
-- Causal relationships between fuel types and EV adoption
-
-Additional variables would be required before making investment or infrastructure recommendations, including:
-
-- EV charging station and charging-port availability
-- Population and household demographics
-- Income
-- Urbanization
-- Electricity prices
-- Gasoline prices
-- Vehicle purchase incentives
-- Historical EV registration data
-
-These variables would allow future analysis to investigate why EV adoption differs between markets and whether identified market gaps represent actionable opportunities.
+- **One year only.** The data is a 2023 snapshot, so the project makes no claims about growth, trends, or future demand.
+- **Light-duty vehicles only.** Medium and heavy-duty vehicles are not included.
+- **Rounded counts.** AFDC rounds to the nearest 100, which matters for very small categories such as hydrogen.
+- **Thresholds are choices.** The 5M large-market cutoff and the 1% geographic-reach cutoff are analyst-defined. Moving them changes which jurisdictions qualify (for example, Alabama has 4.8M vehicles).
+- **No causal claims.** Relationships between gasoline share, hybrid share, and EV adoption are associations only.
+- **Missing context.** A real expansion decision would also need charging infrastructure, population and income, urbanization, electricity and gasoline prices, incentives, and multi-year registration history.
 
 ---
 
-## Preliminary Business Takeaway
+## How to Reproduce
 
-The analysis shows that **vehicle market size and EV adoption should be evaluated together** when examining EV market opportunities.
-
-Large markets such as Texas can contribute substantial EV registration volume while still exhibiting EV penetration below the national benchmark. Conversely, some smaller jurisdictions demonstrate relatively high EV adoption but contribute a smaller portion of total national EV registrations.
-
-The current findings therefore support using **market size, adoption gap, EV representation, and fuel composition together as screening indicators** for deeper market analysis rather than using a single metric to determine expansion priorities.
-
----
-
-## Future Development
-
-Planned next steps include:
-
-- Complete the Fuel Transition & Market Composition dashboard
-- Analyze gasoline dependence relative to EV adoption
-- Compare HEV/PHEV participation with EV penetration
-- Expand alternative-fuel analysis
-- Finalize dashboard interactions and visual formatting
-- Add dashboard screenshots
-- Document final business insights and recommendations
-- Investigate additional external datasets for charging infrastructure and demographic analysis
-
----
-
-## Skills Demonstrated
-
-- SQL
-- MySQL
-- DBeaver
-- Data Cleaning
-- Data Validation
-- Common Table Expressions (CTEs)
-- SQL Views
-- Conditional Aggregation
-- Business Intelligence
-- Power BI
-- DAX
-- Filter Context
-- KPI Development
-- Data Visualization
-- Market Segmentation
-- Exploratory Data Analysis
-- Data Storytelling
-- Business Analysis
-- Git/GitHub
+1. Create a MySQL database named `evmarketshare`.
+2. Import `EV market share/Vehicle Data.csv` into a table named `vehicle_data_raw` (DBeaver CSV import).
+3. Run `EV market share/DataCleaning.sql` to build `vehicle_data_clean`.
+4. Run `EV market share/AnalysisDes.sql` to create the `state_vehicle_metrics` view and answer the business questions.
+5. Open `EV market share/dashboard.pbix` in Power BI Desktop. It connects to MySQL at `localhost:3306`, so click Refresh after steps 1 to 4.
 
 ---
 
@@ -458,29 +332,32 @@ Planned next steps include:
 
 ```text
 U.S.-EV-Market-Share/
-│
 ├── EV market share/
-│   ├── U.S. Electric Vehicle Share/
-│   │   ├── MarketOverview.png
-│   │   └── ...
-│   ├── Vehicle Data.csv
-│   ├── dashboard.pbix
-│   ├── ev analysis.sql
-│   └── ...
-│
+│   ├── U.S. Electric Vehicle Market Share/
+│   │   ├── MarketOverview.png            dashboard page 1
+│   │   ├── MarketOpportunity.png         dashboard page 2
+│   │   ├── FuelTransition.png            dashboard page 3
+│   │   ├── ev_adoption_by_state.csv      exported query results
+│   │   ├── state_fuel_market_share.csv   exported query results
+│   │   └── alt_fuel_meaningful_vs_niche.csv
+│   ├── Vehicle Data.csv                  source data (AFDC 2023)
+│   ├── DataCleaning.sql                  raw to clean table
+│   ├── AnalysisDes.sql                   metrics view and business questions
+│   └── dashboard.pbix                    Power BI report
+├── VALIDATION.md                         SQL vs. Power BI checks
 └── README.md
 ```
 
-> Repository organization will continue to be refined as the project is completed.
+---
+
+## Skills Demonstrated
+
+SQL · MySQL · DBeaver · Data Cleaning · Data Validation · CTEs · SQL Views · Conditional Aggregation · Power BI · DAX · Filter Context · Power Query · KPI Development · Data Visualization · Market Segmentation · Data Storytelling · Git/GitHub
 
 ---
 
 ## Conclusion
 
-This project demonstrates an end-to-end analytical workflow that moves beyond simply visualizing EV registration counts.
+Raw vehicle registration data was cleaned and transformed in MySQL, validated through SQL analysis, modeled in Power BI, and extended with DAX to create fixed national benchmarks and market-level KPIs.
 
-Raw vehicle registration data was cleaned and transformed in MySQL, validated through SQL analysis, modeled in Power BI, and extended using DAX to create dynamic benchmarks and market-level KPIs.
-
-The analysis currently identifies substantial differences in EV penetration and representation across U.S. jurisdictions. In particular, several large vehicle markets remain below the national EV adoption benchmark, providing a useful starting point for deeper market investigation.
-
-The next phase of the project expands the analysis into gasoline dependence, hybrid participation, and alternative-fuel composition before developing final business recommendations.
+The analysis shows that market size and EV adoption have to be read together. Fifteen large markets sit below the national EV rate, led in scale by Texas. Ohio, Pennsylvania, Michigan, and Indiana show the lowest representation among the largest gaps. These markets are the clearest starting points for deeper investigation, once infrastructure, demographic, and multi-year data are added.
